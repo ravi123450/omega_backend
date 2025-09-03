@@ -55,7 +55,7 @@ async function all(sql, params = []) {
 // --- Config ---
 const app = express();
 const PORT = process.env.PORT || 4000;
-const ORIGIN = process.env.CLIENT_ORIGIN || "https://omegaskillsacademy.online";
+const ORIGIN = process.env.CLIENT_ORIGIN || "https://omegabackend-production.up.railway.app";
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_change_me";
 const TOKEN_COOKIE = "token";
 
