@@ -77,7 +77,7 @@ const randomId = () => (crypto.randomUUID ? crypto.randomUUID() : crypto.randomB
 const PENDING_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 // --- Mailer ---
-import nodemailer from "nodemailer";
+
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
