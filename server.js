@@ -11,6 +11,7 @@ import { fileURLToPath } from "url";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 
+
 // --- Database setup ---
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL, // Make sure to add the PostgreSQL connection URL to .env
@@ -146,6 +147,7 @@ function requireAuth(req, res, next) {
 // --- Health ---
 app.get("/", (_req, res) => res.json({ ok: true, service: "omega-softskills-combined" }));
 
+
 app.post("/api/auth/signup", async (req, res) => {
   try {
     let { name, email, password } = req.body || {};
@@ -158,7 +160,12 @@ app.post("/api/auth/signup", async (req, res) => {
 
     // strong password check
     const strong =
-      pw.length >= 8 && /[A-Z]/.test(pw) && /[a-z]/.test(pw) && /[0-9]/.test(pw) && /[^A-Za-z0-9]/.test(pw);
+      pw.length >= 8 &&
+      /[A-Z]/.test(pw) &&
+      /[a-z]/.test(pw) &&
+      /[0-9]/.test(pw) &&
+      /[^A-Za-z0-9]/.test(pw);
+
     if (!strong)
       return res.status(400).json({
         error: "Password must be 8+ chars with upper, lower, number, and symbol.",
@@ -184,12 +191,19 @@ app.post("/api/auth/signup", async (req, res) => {
         [pending_id, name, email, hash, otp, now + PENDING_TTL_MS, now, 0, 0]
       );
 
-      // send OTP
-      await sendMail(
-        email,
-        "Your Omega Skills Academy verification code",
-        `Your verification code is: ${otp}`
-      );
+      try {
+        // send OTP via Railway-friendly SMTP
+        await sendMail(
+          email,
+          "Your Omega Skills Academy verification code",
+          `<p>Hello ${name},</p>
+           <p>Your verification code is: <strong>${otp}</strong></p>
+           <p>This code expires in 10 minutes.</p>`
+        );
+      } catch (err) {
+        console.error("OTP email failed:", err);
+        return res.status(500).json({ error: "Failed to send OTP email. Try again later." });
+      }
 
       return res.json({
         otp_required: true,
@@ -205,18 +219,21 @@ app.post("/api/auth/signup", async (req, res) => {
       "INSERT INTO users(name,email,password_hash,role,created_at) VALUES($1,$2,$3,$4,$5) RETURNING id",
       [name, email, hash, "student", created_at]
     );
+
     const user = { id: r.rows[0].id, name, email, role: "student" };
     const token = signToken(user);
+
     return res
       .cookie(TOKEN_COOKIE, token, {
         httpOnly: true,
         sameSite: "lax",
         secure: process.env.NODE_ENV === "production",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       })
       .json({ user, token, otp_required: false });
+
   } catch (e) {
-    console.error(e);
+    console.error("Signup error:", e);
     res.status(500).json({ error: "Server error" });
   }
 });
