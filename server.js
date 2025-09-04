@@ -77,27 +77,38 @@ const randomId = () => (crypto.randomUUID ? crypto.randomUUID() : crypto.randomB
 const PENDING_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 // --- Mailer ---
+import nodemailer from "nodemailer";
+
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: process.env.SMTP_SECURE === "true",
+  port: Number(process.env.SMTP_PORT || 2525), // Railway-friendly
+  secure: false, // false for STARTTLS on 2525
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  tls: {
+    rejectUnauthorized: false, // allows self-signed certs
+  },
 });
 
-async function sendMail(to, subject, html) {
+export async function sendMail(to, subject, html) {
   if (!process.env.SMTP_HOST) {
     console.warn("SMTP not configured; skipping email send");
     return;
   }
-  await transporter.sendMail({
-    from: process.env.FROM_EMAIL || "no-reply@localhost",
-    to,
-    subject,
-    html,
-  });
+
+  try {
+    const info = await transporter.sendMail({
+      from: process.env.FROM_EMAIL || "no-reply@localhost",
+      to,
+      subject,
+      html,
+    });
+    console.log("Email sent:", info.messageId);
+  } catch (err) {
+    console.error("Email send failed:", err);
+  }
 }
 
 function sixDigit() {
