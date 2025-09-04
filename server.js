@@ -55,7 +55,7 @@ async function all(sql, params = []) {
 // --- Config ---
 const app = express();
 const PORT = process.env.PORT || 4000;
-const ORIGIN = process.env.CLIENT_ORIGIN || "https://omegaskillsacademy.online";
+const ORIGIN = "https://omegaskillsacademy.online";
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_change_me";
 const TOKEN_COOKIE = "token";
 
@@ -78,6 +78,7 @@ const PENDING_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 // --- Mailer ---
 const transporter = nodemailer.createTransport({
+
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT),
   secure: process.env.SMTP_SECURE === "true",
@@ -86,7 +87,7 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SMTP_PASS,
   },
 });
-
+console.log(host)
 async function sendMail(to, subject, html) {
   if (!process.env.SMTP_HOST) {
     console.warn("SMTP not configured; skipping email send");
