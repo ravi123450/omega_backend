@@ -11,7 +11,6 @@ import { fileURLToPath } from "url";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 
-
 // --- Database setup ---
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL, // Make sure to add the PostgreSQL connection URL to .env
@@ -56,7 +55,7 @@ async function all(sql, params = []) {
 // --- Config ---
 const app = express();
 const PORT = process.env.PORT || 4000;
-const ORIGIN = "https://omegaskillsacademy.online";
+const ORIGIN = process.env.CLIENT_ORIGIN || "https://omegaskillsacademy.online";
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_change_me";
 const TOKEN_COOKIE = "token";
 
@@ -78,38 +77,27 @@ const randomId = () => (crypto.randomUUID ? crypto.randomUUID() : crypto.randomB
 const PENDING_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 // --- Mailer ---
-
-
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 2525), // Railway-friendly
-  secure: false, // false for STARTTLS on 2525
+  port: Number(process.env.SMTP_PORT),
+  secure: process.env.SMTP_SECURE === "true",
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
-  tls: {
-    rejectUnauthorized: false, // allows self-signed certs
-  },
 });
 
-export async function sendMail(to, subject, html) {
+async function sendMail(to, subject, html) {
   if (!process.env.SMTP_HOST) {
     console.warn("SMTP not configured; skipping email send");
     return;
   }
-
-  try {
-    const info = await transporter.sendMail({
-      from: process.env.FROM_EMAIL || "no-reply@localhost",
-      to,
-      subject,
-      html,
-    });
-    console.log("Email sent:", info.messageId);
-  } catch (err) {
-    console.error("Email send failed:", err);
-  }
+  await transporter.sendMail({
+    from: process.env.FROM_EMAIL || "no-reply@localhost",
+    to,
+    subject,
+    html,
+  });
 }
 
 function sixDigit() {
@@ -147,7 +135,6 @@ function requireAuth(req, res, next) {
 // --- Health ---
 app.get("/", (_req, res) => res.json({ ok: true, service: "omega-softskills-combined" }));
 
-
 app.post("/api/auth/signup", async (req, res) => {
   try {
     let { name, email, password } = req.body || {};
@@ -160,12 +147,7 @@ app.post("/api/auth/signup", async (req, res) => {
 
     // strong password check
     const strong =
-      pw.length >= 8 &&
-      /[A-Z]/.test(pw) &&
-      /[a-z]/.test(pw) &&
-      /[0-9]/.test(pw) &&
-      /[^A-Za-z0-9]/.test(pw);
-
+      pw.length >= 8 && /[A-Z]/.test(pw) && /[a-z]/.test(pw) && /[0-9]/.test(pw) && /[^A-Za-z0-9]/.test(pw);
     if (!strong)
       return res.status(400).json({
         error: "Password must be 8+ chars with upper, lower, number, and symbol.",
@@ -191,19 +173,12 @@ app.post("/api/auth/signup", async (req, res) => {
         [pending_id, name, email, hash, otp, now + PENDING_TTL_MS, now, 0, 0]
       );
 
-      try {
-        // send OTP via Railway-friendly SMTP
-        await sendMail(
-          email,
-          "Your Omega Skills Academy verification code",
-          `<p>Hello ${name},</p>
-           <p>Your verification code is: <strong>${otp}</strong></p>
-           <p>This code expires in 10 minutes.</p>`
-        );
-      } catch (err) {
-        console.error("OTP email failed:", err);
-        return res.status(500).json({ error: "Failed to send OTP email. Try again later." });
-      }
+      // send OTP
+      await sendMail(
+        email,
+        "Your Omega Skills Academy verification code",
+        `Your verification code is: ${otp}`
+      );
 
       return res.json({
         otp_required: true,
@@ -219,21 +194,18 @@ app.post("/api/auth/signup", async (req, res) => {
       "INSERT INTO users(name,email,password_hash,role,created_at) VALUES($1,$2,$3,$4,$5) RETURNING id",
       [name, email, hash, "student", created_at]
     );
-
     const user = { id: r.rows[0].id, name, email, role: "student" };
     const token = signToken(user);
-
     return res
       .cookie(TOKEN_COOKIE, token, {
         httpOnly: true,
         sameSite: "lax",
         secure: process.env.NODE_ENV === "production",
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        maxAge: 7 * 24 * 60 * 60 * 1000,
       })
       .json({ user, token, otp_required: false });
-
   } catch (e) {
-    console.error("Signup error:", e);
+    console.error(e);
     res.status(500).json({ error: "Server error" });
   }
 });
