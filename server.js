@@ -87,7 +87,7 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SMTP_PASS,
   },
 });
-console.log(host)
+console.log(process.env.SMTP_HOST)
 async function sendMail(to, subject, html) {
   if (!process.env.SMTP_HOST) {
     console.warn("SMTP not configured; skipping email send");
